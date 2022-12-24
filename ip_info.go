@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -24,7 +26,8 @@ func shodanIpInfo(ip string) {
 	}
 
 	// prepare the URL for the request
-	url := fmt.Sprintf("https://api.shodan.io/shodan/host/%s?key=%s", ip, SHODAN_API)
+	url := fmt.Sprintf("https://api.shodan.io/shodan/host/%s?key=%s",
+		ip, SHODAN_API)
 
 	// hit the API endpoint, check for errors
 	resp, err := http.Get(url)
@@ -102,16 +105,43 @@ func greynoiseIpInfo(ip string) {
 
 }
 
+func processFile(file string) {
+	readFile, err := os.Open(file)
+	check(err)
+	defer readFile.Close()
+	fileScanner := bufio.NewScanner(readFile)
+	fileScanner.Split(bufio.ScanLines)
+
+	for fileScanner.Scan() {
+		ip := fileScanner.Text()
+		fmt.Printf("[+] Processing %s\n", ip)
+		greynoiseIpInfo(ip)
+		shodanIpInfo(ip)
+	}
+}
+
 func main() {
 
-	if len(os.Args) != 2 {
-		fmt.Printf("Usage: \t\t%s <ip address>\n", os.Args[0])
-		fmt.Printf("Example: \t%s 8.8.8.8\n", os.Args[0])
-		os.Exit(1)
-	}
-	ip := os.Args[1]
+	file := flag.String("file", "", "path to file with newline separated IPs")
+	ip := flag.String("ip", "", "IP address to lookup")
+	flag.Parse()
 
-	greynoiseIpInfo(ip)
-	shodanIpInfo(ip)
+	if *ip != "" {
+		greynoiseIpInfo(*ip)
+		shodanIpInfo(*ip)
+	}
+
+	if *file != "" {
+		fmt.Println("GreyNoise Community API only allows 50 IP lookups per day... Press Y to continue?")
+		var choice string
+		fmt.Scanln(&choice)
+		if choice == "Y" || choice == "y"{
+			processFile(*file)
+		} else {
+			fmt.Println("Exiting...")
+		}
+
+	}
+
 
 }
